@@ -578,8 +578,12 @@ func (s *PooledService) CountTokens(ctx context.Context, request TokenCountReque
 		return TokenCount{}, fmt.Errorf("%w: 请求没有系统提示或对话内容", ErrInvalidArgument)
 	}
 	modelAccessScope := ModelAccessKey("count-tokens", modelID)
-	selection := AccountSelection{ModelID: modelID, ModelAccessScope: modelAccessScope, Method: "countTokens"}
-	if mixedMediaResolution(request.MediaResolution, request.Contents) {
+	method := "countTokens"
+	if s.pool.DecisionOnlyModel(modelID) {
+		method = "createDecision"
+	}
+	selection := AccountSelection{ModelID: modelID, ModelAccessScope: modelAccessScope, Method: method}
+	if method == "countTokens" && mixedMediaResolution(request.MediaResolution, request.Contents) {
 		selection.Channel = ChannelBuild
 	}
 	var count TokenCount
@@ -668,13 +672,19 @@ func (s *PooledService) Generate(ctx context.Context, request GenerateRequest) (
 	if err != nil {
 		return nil, err
 	}
-	selection := AccountSelection{
-		ModelID:    modelID,
-		Method:     "generateContent",
-		AccountID:  strings.TrimSpace(request.AccountID),
-		ResourceID: resourceID,
+	method := "generateContent"
+	decisionOnly := s.pool.DecisionOnlyModel(modelID)
+	if decisionOnly {
+		method = "createDecision"
 	}
-	if RequestNeedsBuild(request) || request.Unary && s.BuildNativeNonstream {
+	selection := AccountSelection{
+		ModelID:        modelID,
+		Method:         method,
+		AccountID:      strings.TrimSpace(request.AccountID),
+		ResourceID:     resourceID,
+		PlaygroundOnly: decisionOnly,
+	}
+	if !decisionOnly && (RequestNeedsBuild(request) || request.Unary && s.BuildNativeNonstream) {
 		selection.PreferredChannel = ChannelBuild
 	}
 	pinned := selection.AccountID != "" || selection.ResourceID != ""

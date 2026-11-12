@@ -176,8 +176,15 @@ func (c *Client) CountTokensForAccount(ctx context.Context, accountID string, re
 	if lease, ok := AccountLeaseFromContext(ctx); ok && lease.Channel() == ChannelBuild {
 		return c.buildCountTokens(ctx, accountID, request)
 	}
-	if entry, err := c.modelEntry(ctx, accountID, request.Model); err == nil && entry.model.Capabilities["assistant_route"] {
-		request.Model = assistantBaseModelID(request.Model)
+	if entry, err := c.modelEntry(ctx, accountID, request.Model); err == nil {
+		switch {
+		case entry.defaults.WireModel != "":
+			request.Model = entry.defaults.WireModel
+		case entry.model.Capabilities["assistant_route"]:
+			request.Model = assistantBaseModelID(request.Model)
+		case !hasMethod(entry.model, "countTokens") && hasMethod(entry.model, "createDecision"):
+			request.Model = preferredBootstrapModelID
+		}
 	}
 	body, err := EncodeCountTokensRequest(request)
 	if err != nil {

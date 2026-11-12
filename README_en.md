@@ -541,6 +541,7 @@ The model catalog follows AI Studio updates; clients read the current values fro
 | --- | --- | --- | ---: | ---: |
 | `gemini-4-carbon` | Gemini 4 Carbon | Text | 1048576 | 32768 |
 | `gemini-4-argon` | Gemini 4 Argon | Text | 1048576 | 32768 |
+| `gemini-4-hydrogen` | Gemini 4 Hydrogen | Text | 1048576 | 65536 |
 | `gemini-3.8-flash` | Gemini 3.8 Flash | Text | 1048576 | 65536 |
 | `gemini-3.6-flash` | Gemini 3.6 Flash | Text | 1048576 | 65536 |
 | `gemini-3.5-flash-lite` | Gemini 3.5 Flash Lite | Text | 1048576 | 65536 |

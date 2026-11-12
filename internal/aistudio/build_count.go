@@ -72,7 +72,11 @@ func (c *Client) buildCountTokens(ctx context.Context, accountID string, request
 	if !ok {
 		return TokenCount{}, fmt.Errorf("AI Studio protected transport 不支持 Build 代理请求")
 	}
-	path, body, err := EncodeBuildCountTokensRequest(request)
+	wireRequest := request
+	if entry, err := c.modelEntry(ctx, accountID, request.Model); err == nil && entry.defaults.WireModel != "" {
+		wireRequest.Model = entry.defaults.WireModel
+	}
+	path, body, err := EncodeBuildCountTokensRequest(wireRequest)
 	if err != nil {
 		return TokenCount{}, fmt.Errorf("%w: %v", ErrInvalidArgument, err)
 	}

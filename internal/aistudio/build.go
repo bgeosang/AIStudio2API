@@ -35,7 +35,7 @@ func buildModelDefaults(model Model) GenerationDefaults {
 
 // EncodeBuildGenerateRequest 编码 Build 代理转发的 Gemini API 路径与 JSON 请求体，unary 使用 generateContent
 func EncodeBuildGenerateRequest(request GenerateRequest, defaults GenerationDefaults, imageRoute bool, unary bool) (string, []byte, error) {
-	model := strings.TrimPrefix(strings.TrimSpace(request.Model), "models/")
+	model := strings.TrimPrefix(strings.TrimSpace(cmp.Or(defaults.WireModel, request.Model)), "models/")
 	if model == "" {
 		return "", nil, fmt.Errorf("Build 请求缺少模型")
 	}

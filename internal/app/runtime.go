@@ -1217,7 +1217,14 @@ func (service *trackedService) GenerateImage(ctx context.Context, request aistud
 
 // CreateDecision 回答决策问题并登记请求目标与账户
 func (service *trackedService) CreateDecision(ctx context.Context, request aistudio.DecisionRequest) (aistudio.DecisionResult, error) {
-	request.Model = service.catalogModelID(ctx, service.mappedModel(request.Model))
+	mapped := strings.TrimSpace(service.mappedModel(request.Model))
+	if mapped == "" {
+		mapped = "gemini-decision-1"
+	}
+	request.Model = service.catalogModelID(ctx, mapped)
+	if !service.pool.DecisionOnlyModel(request.Model) && !service.pool.DecisionOnlyModel(mapped) && service.pool.MissingModel(request.Model) {
+		request.Model = "gemini-decision-1"
+	}
 	requestCtx, cancel, err := service.observedDataRequestContext(ctx, request.Model)
 	if err != nil {
 		return aistudio.DecisionResult{}, err
@@ -1830,9 +1837,15 @@ func (service *trackedService) generateWithRetry(
 		if copyFiles {
 			selectionResourceID = ""
 		}
+		decisionOnly := service.pool.DecisionOnlyModel(modelID)
+		selectionMethod := "generateContent"
+		if decisionOnly {
+			selectionMethod = "createDecision"
+		}
 		selection := aistudio.AccountSelection{
-			ModelID: modelID, Method: "generateContent",
+			ModelID: modelID, Method: selectionMethod,
 			AccountID: selectionAccountID, ResourceID: selectionResourceID, PreferredAccountID: preferredAccountID,
+			PlaygroundOnly: decisionOnly,
 		}
 		if resourceID != "" || request.Config.SpeechConfig != nil && request.Config.SpeechConfig.Mode != "" {
 			selection.PlaygroundOnly = true
@@ -1840,7 +1853,7 @@ func (service *trackedService) generateWithRetry(
 		if continuationRounds > 1 && (request.Config.MaxOutputTokens != nil || !aistudio.RequestNeedsBuild(request)) {
 			selection.PlaygroundOnly = true
 		}
-		if !assistant && !selection.PlaygroundOnly && service.pool.BuildEnabled() && aistudio.RequestNeedsBuild(request) {
+		if !decisionOnly && !assistant && !selection.PlaygroundOnly && service.pool.BuildEnabled() && aistudio.RequestNeedsBuild(request) {
 			selection.Channel = aistudio.ChannelBuild
 		}
 		fallbackReason := ""

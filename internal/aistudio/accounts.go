@@ -2765,6 +2765,24 @@ func (p *AccountPool) hasModelCapabilityLocked(modelID string, capability string
 	return false
 }
 
+// DecisionOnlyModel 判断目录模型是否仅通过 createDecision 提供决策能力（不支持直接 generateContent）
+func (p *AccountPool) DecisionOnlyModel(modelID string) bool {
+	modelID = strings.TrimPrefix(strings.TrimSpace(modelID), "models/")
+	if modelID == "" {
+		return false
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, account := range p.accounts {
+		for _, model := range account.Models {
+			if modelMatchesID(model, modelID) {
+				return !hasMethod(model, "generateContent") && hasMethod(model, "createDecision")
+			}
+		}
+	}
+	return false
+}
+
 // BootstrapModels 返回账户实时目录中的 WAA 初始化模型
 func (p *AccountPool) BootstrapModels(accountID string) ([]string, error) {
 	p.mu.Lock()
@@ -2816,7 +2834,8 @@ func accountBootstrapModels(account *Account) []string {
 func waaBootstrapModelEligible(account *Account, modelID string) bool {
 	for _, model := range account.Models {
 		if !modelMatchesID(model, modelID) || !hasMethod(model, "generateContent") ||
-			!modelAllowedByTier(model, account.BenefitTier) || !model.Capabilities["chat_model"] || model.Capabilities["assistant_route"] {
+			!modelAllowedByTier(model, account.BenefitTier) || !model.Capabilities["chat_model"] ||
+			model.Capabilities["assistant_route"] || model.Capabilities["synthetic_model"] {
 			continue
 		}
 		return true

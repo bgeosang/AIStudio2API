@@ -73,7 +73,7 @@ func EncodeGenerateContentRequest(request GenerateRequest, defaults GenerationDe
 		length = 17
 	}
 	wire := make([]any, length)
-	wire[0] = wireModelName(request.Model)
+	wire[0] = wireModelName(cmp.Or(defaults.WireModel, request.Model))
 	wire[1] = contents
 	safety, err := resolveSafetySettings(request.SafetySettings, defaults.ImageRoute)
 	if err != nil {
@@ -742,6 +742,9 @@ func (c *Client) validateGenerateRequest(request GenerateRequest) error {
 
 // validateGenerateEntry 按 Generate 的顺序校验工具、转写、生成参数与安全设置
 func validateGenerateEntry(request GenerateRequest, entry modelEntry) error {
+	if !hasMethod(entry.model, "generateContent") && hasMethod(entry.model, "createDecision") {
+		return nil
+	}
 	if err := validateVideoParts(request.Contents); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidArgument, err)
 	}
@@ -775,6 +778,9 @@ func (c *Client) Generate(ctx context.Context, request GenerateRequest) (<-chan 
 	}
 	if err != nil {
 		return nil, err
+	}
+	if !hasMethod(entry.model, "generateContent") && hasMethod(entry.model, "createDecision") {
+		return c.generateDecision(ctx, request, entry)
 	}
 	apiKey, _ := ctx.Value(apiKeyContextKey{}).(string)
 	restoring := request.restoreModelTurns && !build && !entry.model.Capabilities["assistant_route"] && !entry.defaults.InteractionStream && !entry.defaults.InteractionTask

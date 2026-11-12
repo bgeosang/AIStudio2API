@@ -541,6 +541,7 @@ curl http://127.0.0.1:2048/v1beta/decisions \
 | --- | --- | --- | ---: | ---: |
 | `gemini-4-carbon` | Gemini 4 Carbon | 文本 | 1048576 | 32768 |
 | `gemini-4-argon` | Gemini 4 Argon | 文本 | 1048576 | 32768 |
+| `gemini-4-hydrogen` | Gemini 4 Hydrogen | 文本 | 1048576 | 65536 |
 | `gemini-3.8-flash` | Gemini 3.8 Flash | 文本 | 1048576 | 65536 |
 | `gemini-3.6-flash` | Gemini 3.6 Flash | 文本 | 1048576 | 65536 |
 | `gemini-3.5-flash-lite` | Gemini 3.5 Flash Lite | 文本 | 1048576 | 65536 |

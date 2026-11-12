@@ -122,7 +122,7 @@ func assistantModelEntry(base modelEntry) modelEntry {
 	}
 	// 函数调用经自定义指令与代码块转录完成，网页搜索由写代码助手内置的 search_web 完成
 	model.Capabilities = map[string]bool{"assistant_route": true, "function_declarations": true, "google_search": true}
-	for _, name := range []string{"chat_model", "thinking", "thinking_level"} {
+	for _, name := range []string{"chat_model", "thinking", "thinking_level", "synthetic_model"} {
 		if base.model.Capabilities[name] {
 			model.Capabilities[name] = true
 		}
@@ -134,6 +134,7 @@ func assistantModelEntry(base modelEntry) modelEntry {
 	return modelEntry{model: model, defaults: GenerationDefaults{
 		MaxOutputTokens: base.defaults.MaxOutputTokens, Thinking: true, ThinkingLevel: true,
 		DefaultThinkingLevel: assistantDefaultThinkingLevel, ThinkingLevels: base.defaults.ThinkingLevels,
+		WireModel: base.defaults.WireModel,
 	}}
 }
 
@@ -180,7 +181,11 @@ func EncodeAssistantRequest(request GenerateRequest, defaults GenerationDefaults
 	wire := make([]any, 29)
 	wire[0] = contents
 	wire[5] = int64(1)
-	wire[7] = wireModelName(assistantBaseModelID(request.Model))
+	wireModel := assistantBaseModelID(request.Model)
+	if defaults.WireModel != "" {
+		wireModel = defaults.WireModel
+	}
+	wire[7] = wireModelName(wireModel)
 	if system := SystemText(request.System); system != "" {
 		wire[8] = system
 	}

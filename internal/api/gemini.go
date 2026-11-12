@@ -472,6 +472,9 @@ func (s *server) handleGeminiAction(w http.ResponseWriter, r *http.Request) {
 	case "embedContent", "batchEmbedContents":
 		s.handleGeminiEmbed(w, r, model, method == "batchEmbedContents")
 		return
+	case "createDecision":
+		s.handleModelDecision(w, r, model)
+		return
 	}
 	var request geminiRequest
 	if err := decodeGeminiJSON(r, &request); err != nil {

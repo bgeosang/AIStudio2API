@@ -307,3 +307,53 @@ func TestRepairJSONStringsTrailingComma(t *testing.T) {
 		t.Fatalf("calls=%v", calls)
 	}
 }
+
+// TestHydrogenAndDecisionCompatibility 验证 Gemini 4 Hydrogen 目录派生与真实 wire 模型编码，以及 Gemini Decision 1 生成桥接
+func TestHydrogenAndDecisionCompatibility(t *testing.T) {
+	rawCatalog := `[[["models/gemini-4-argon",null,"001","Gemini 4 Argon","Gemini 4 Argon",1048576,32768,["generateContent","countTokens"]],["models/gemini-3.8-flash",null,"001","Gemini 3.8 Flash","Gemini 3.8 Flash",1048576,65536,["generateContent","countTokens"],null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,[1,10,12,25,48,52]]]]`
+	catalog, err := parseModelCatalog(strings.NewReader(rawCatalog))
+	if err != nil {
+		t.Fatal(err)
+	}
+	hydrogen, ok := catalog.entries["gemini-4-hydrogen"]
+	if !ok {
+		t.Fatalf("gemini-4-hydrogen not synthesized in catalog")
+	}
+	if hydrogen.defaults.WireModel != "gemini-3.8-flash" {
+		t.Fatalf("hydrogen wireModel=%q want gemini-3.8-flash", hydrogen.defaults.WireModel)
+	}
+	if _, ok := catalog.entries["gemini-4-hydrogen-build"]; !ok {
+		t.Fatalf("gemini-4-hydrogen-build not synthesized in catalog")
+	}
+	encoded, err := EncodeGenerateContentRequest(GenerateRequest{
+		Model:    "gemini-4-hydrogen",
+		Contents: []Content{{Role: RoleUser, Parts: []Part{{Text: "ping"}}}},
+	}, hydrogen.defaults, RequestContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wire []any
+	if err := json.Unmarshal(encoded, &wire); err != nil {
+		t.Fatal(err)
+	}
+	if len(wire) == 0 || wire[0] != "models/gemini-3.8-flash" {
+		t.Fatalf("wire[0]=%v want models/gemini-3.8-flash", wire[0])
+	}
+
+	decReq, rawJSON, multi, err := decisionRequestFromGenerate(GenerateRequest{
+		Model:    "gemini-decision-1",
+		Contents: []Content{{Role: RoleUser, Parts: []Part{{Text: "Did the item arrive damaged?"}}}},
+	}, "gemini-decision-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rawJSON || multi || len(decReq.Questions) != 1 || decReq.Questions[0].Type != "noul" {
+		t.Fatalf("unexpected decisionRequest: %+v", decReq)
+	}
+	out := formatDecisionGenerateOutput(decReq, DecisionResult{
+		Answers: []DecisionAnswer{{Key: "decision", Type: "noul", Noul: 0.96, Confidence: 0.99}},
+	}, rawJSON, multi)
+	if !strings.HasPrefix(out, "YES ") {
+		t.Fatalf("unexpected decision output: %q", out)
+	}
+}

@@ -91,6 +91,8 @@ type GenerationDefaults struct {
 	VideoResolution string
 	// ContinuedOutputTokens 表示自动续写模型的输出总上限，其他模型为 0
 	ContinuedOutputTokens int64
+	// WireModel 是兼容模型条目发往上游 RPC 时使用的真实模型 ID，为空时使用请求模型 ID
+	WireModel string
 }
 
 type modelEntry struct {
@@ -142,6 +144,28 @@ func parseModelCatalog(source io.Reader) (modelCatalog, error) {
 		catalog.models = append(catalog.models, entry.model)
 		catalog.entries[entry.model.ID] = entry
 	}
+	if _, exists := catalog.entries["gemini-4-hydrogen"]; !exists {
+		for _, fallbackID := range []string{"gemini-3.8-flash", "gemini-4-argon", "gemini-4-carbon"} {
+			base, ok := catalog.entries[fallbackID]
+			if !ok {
+				continue
+			}
+			hydrogen := hydrogenModelEntry(base)
+			catalog.entries[hydrogen.model.ID] = hydrogen
+			inserted := false
+			for idx, item := range catalog.models {
+				if item.ID == "gemini-4-argon" || item.ID == "gemini-4-carbon" {
+					catalog.models = append(catalog.models[:idx+1], append([]Model{hydrogen.model}, catalog.models[idx+1:]...)...)
+					inserted = true
+					break
+				}
+			}
+			if !inserted {
+				catalog.models = append([]Model{hydrogen.model}, catalog.models...)
+			}
+			break
+		}
+	}
 	for _, base := range catalog.models {
 		if !base.Capabilities["code_assistant"] {
 			continue
@@ -154,6 +178,27 @@ func parseModelCatalog(source io.Reader) (modelCatalog, error) {
 		catalog.entries[entry.model.ID] = entry
 	}
 	return catalog, nil
+}
+
+// hydrogenModelEntry 在上游实时目录尚未单独列出 gemini-4-hydrogen 时基于 Flash/Gemini 4 基座派生兼容目录条目
+func hydrogenModelEntry(base modelEntry) modelEntry {
+	model := cloneModels([]Model{base.model})[0]
+	model.ID = "gemini-4-hydrogen"
+	model.Name = "Gemini 4 Hydrogen"
+	model.Description = "Gemini 4 Hydrogen"
+	if model.Capabilities == nil {
+		model.Capabilities = make(map[string]bool)
+	}
+	model.Capabilities["synthetic_model"] = true
+	if model.CapabilityOptions != nil {
+		delete(model.CapabilityOptions, "aliases")
+		if len(model.CapabilityOptions) == 0 {
+			model.CapabilityOptions = nil
+		}
+	}
+	defaults := base.defaults
+	defaults.WireModel = base.model.ID
+	return modelEntry{model: model, defaults: defaults}
 }
 
 func decodeModelRow(raw json.RawMessage, rowIndex int) (modelEntry, error) {
