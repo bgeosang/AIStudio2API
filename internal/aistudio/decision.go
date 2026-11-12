@@ -109,7 +109,7 @@ func (s *PooledService) CreateDecision(ctx context.Context, request DecisionRequ
 	}
 	var result DecisionResult
 	var requestErr error
-	for attempt := 0; attempt < accountAttemptLimit(s.pool, pinned); attempt++ {
+	for range accountAttemptLimit(s.pool, pinned) {
 		lease, owned, err := resolveAccountLease(ctx, s.pool, selection)
 		if err != nil {
 			if requestErr != nil && errors.Is(err, ErrNoEligibleAccount) {
